@@ -28,6 +28,7 @@ export default function LoginPage() {
       return;
     }
 
+    // Middleware will allow /reports now, and will redirect away from /login anyway
     router.push("/reports");
   }
 
@@ -39,15 +40,11 @@ export default function LoginPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          paddingTop: 40,
+          paddingBottom: 40,
         }}
       >
-        <Card
-          style={{
-            width: 420,
-            padding: 28,
-            boxShadow: "var(--shadow, 0 10px 30px rgba(0,0,0,0.55))",
-          }}
-        >
+        <Card style={{ width: 420, padding: 28 }}>
           <div style={{ marginBottom: 24 }}>
             <div
               style={{
@@ -106,7 +103,11 @@ export default function LoginPage() {
               />
             </label>
 
-            <PrimaryButton type="submit" disabled={loading} style={{ marginTop: 8, opacity: loading ? 0.7 : 1 }}>
+            <PrimaryButton
+              type="submit"
+              disabled={loading}
+              style={{ marginTop: 8, width: "100%", opacity: loading ? 0.7 : 1 }}
+            >
               {loading ? "Signing in..." : "Sign In"}
             </PrimaryButton>
 
