@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -28,7 +29,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Middleware will allow /reports now, and will redirect away from /login anyway
     router.push("/reports");
   }
 
@@ -44,22 +44,41 @@ export default function LoginPage() {
           paddingBottom: 40,
         }}
       >
-        <Card style={{ width: 420, padding: 28 }}>
-          <div style={{ marginBottom: 24 }}>
-            <div
-              style={{
-                color: "var(--lime)",
-                fontWeight: 900,
-                letterSpacing: 0.6,
-                marginBottom: 8,
-              }}
-            >
-              PROFIT PORTAL
-            </div>
+        <Card style={{ width: 420, padding: 32 }}>
+          {/* Logo */}
+          <div style={{ marginBottom: 18 }}>
+            <Image
+              src="/boltblue-logo.png"
+              alt="BoltBlue"
+              width={170}
+              height={40}
+              priority
+            />
+          </div>
 
-            <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.1 }}>
-              Sign In
-            </div>
+          {/* Product Label */}
+          <div
+            style={{
+              color: "var(--lime)",
+              fontWeight: 900,
+              letterSpacing: 0.8,
+              fontSize: 12,
+              marginBottom: 10,
+            }}
+          >
+            PROFIT PORTAL
+          </div>
+
+          {/* Title */}
+          <div
+            style={{
+              fontSize: 28,
+              fontWeight: 900,
+              lineHeight: 1.1,
+              marginBottom: 24,
+            }}
+          >
+            Sign In
           </div>
 
           <form onSubmit={onSubmit} style={{ display: "grid", gap: 16 }}>
