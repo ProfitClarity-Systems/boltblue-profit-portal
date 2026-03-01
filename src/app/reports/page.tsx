@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -16,7 +17,7 @@ type ReportItem = {
 export default function ReportsPage() {
   const [query, setQuery] = useState("");
 
-  const clientName = "Boltblue Digital Marketing";
+  const clientName = "";
 
   const reports: ReportItem[] = useMemo(
     () => [
@@ -57,11 +58,22 @@ export default function ReportsPage() {
         }}
       >
         <div style={{ flex: 1 }}>
+          <div style={{ marginBottom: 10 }}>
+            <Image
+              src="/boltblue-logo.png"
+              alt="BoltBlue"
+              width={160}
+              height={38}
+              priority
+            />
+          </div>
+
           <div
             style={{
               color: "var(--lime)",
               fontWeight: 900,
-              letterSpacing: 0.6,
+              letterSpacing: 0.8,
+              fontSize: 12,
               marginBottom: 10,
             }}
           >
