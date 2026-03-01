@@ -1,27 +1,57 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app/AppHeader";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { SecondaryButton } from "@/components/ui/SecondaryButton";
-import { getMasterFunnelStatic } from "./query";
 import { MasterFunnelView } from "./views/MasterFunnelView";
-
-type RangeKey = "7d" | "30d" | "90d";
+import { getMasterFunnel } from "./query";
+import type { MasterFunnelData, MasterFunnelRangeKey } from "./query";
 
 export default function MasterFunnelPage() {
-  const [range, setRange] = useState<RangeKey>("7d");
+  const [range, setRange] = useState<MasterFunnelRangeKey>("7d");
+
+  const [data, setData] = useState<MasterFunnelData>({
+    leads: 0,
+    qualified: 0,
+    appointments: 0,
+    qualifiedAppointments: 0,
+    sales: 0,
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const clientName = "";
 
-  const data = useMemo(() => getMasterFunnelStatic(range), [range]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getMasterFunnel(range);
+        if (!cancelled) setData(res);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message ?? "Failed to load");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [range]);
 
   return (
     <>
       <AppHeader
         clientName={clientName}
-        subtitle="Traffic → Enquiries → Qualified → Sales → Revenue."
+        subtitle="Leads → Qualified → Appointments → Sales"
       />
 
       <Container>
@@ -42,7 +72,7 @@ export default function MasterFunnelPage() {
                 Master Funnel
               </div>
               <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                Static preview — wiring Supabase next.
+                Live from Pipedrive (synced into Supabase).
               </div>
             </div>
 
@@ -57,6 +87,7 @@ export default function MasterFunnelPage() {
                 >
                   Last 7 days
                 </SecondaryButton>
+
                 <SecondaryButton
                   type="button"
                   onClick={() => setRange("30d")}
@@ -66,6 +97,7 @@ export default function MasterFunnelPage() {
                 >
                   30 days
                 </SecondaryButton>
+
                 <SecondaryButton
                   type="button"
                   onClick={() => setRange("90d")}
@@ -82,6 +114,18 @@ export default function MasterFunnelPage() {
               </SecondaryButton>
             </div>
           </div>
+
+          {error ? (
+            <div style={{ marginTop: 10, fontSize: 13, color: "var(--text-muted)" }}>
+              Error: {error}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <div style={{ marginTop: 10, fontSize: 13, color: "var(--text-muted)" }}>
+              Loading…
+            </div>
+          ) : null}
         </Card>
 
         <div style={{ height: 14 }} />
