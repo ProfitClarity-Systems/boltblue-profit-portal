@@ -1,5 +1,9 @@
 import { supabase } from "@/lib/supabase";
 
+export type MasterFunnelWithTraffic = MasterFunnelData & {
+  traffic: number;
+};
+
 export type MasterFunnelData = {
   leads: number;
   qualified: number;
@@ -133,4 +137,34 @@ export function formatRangeLabel(range: MasterFunnelDateRange) {
   const to = safeDateFromYMD(range.endDate);
   if (!from || !to) return "";
   return `${toYYYYMMDD(from)} → ${toYYYYMMDD(to)}`;
+}
+export async function getTrafficForRange(
+  input: MasterFunnelInput
+): Promise<number> {
+  const isRangeKey = typeof input === "string";
+
+  const startIso = isRangeKey
+    ? isoStartFromRange(input)
+    : startIsoFromYMD(input.startDate) ?? isoStartFromRange("7d");
+
+  const endExclusiveIso = !isRangeKey
+    ? endExclusiveIsoFromYMD(input.endDate)
+    : null;
+
+  const startDate = new Date(startIso).toISOString().slice(0, 10);
+
+  const q = supabase
+    .from("ga4_daily_traffic")
+    .select("sessions")
+    .gte("date", startDate);
+
+  const { data, error } = endExclusiveIso
+    ? await q.lt("date", new Date(endExclusiveIso).toISOString().slice(0, 10))
+    : await q;
+
+  if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+
+  return rows.reduce((sum, r: any) => sum + (r.sessions ?? 0), 0);
 }

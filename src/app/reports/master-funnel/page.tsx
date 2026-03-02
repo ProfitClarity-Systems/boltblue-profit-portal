@@ -6,7 +6,7 @@ import { SecondaryButton } from "@/components/ui/SecondaryButton";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { ReportHeader } from "@/components/app/ReportHeader";
 import { MasterFunnelView } from "./views/MasterFunnelView";
-import { getMasterFunnel } from "./query";
+import { getMasterFunnel, getTrafficForRange } from "./query";
 import type { MasterFunnelData, MasterFunnelDateRange } from "./query";
 
 type PresetKey =
@@ -45,7 +45,10 @@ function lastDayOfPrevMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 0);
 }
 
-function presetToRange(preset: PresetKey, now = new Date()): MasterFunnelDateRange {
+function presetToRange(
+  preset: PresetKey,
+  now = new Date()
+): MasterFunnelDateRange {
   const end = toYYYYMMDD(now);
 
   if (preset === "last7") {
@@ -91,6 +94,7 @@ export default function MasterFunnelPage() {
     return presetToRange(preset);
   }, [preset, customRange]);
 
+  // Keep existing type for now; we'll extend the view next.
   const [data, setData] = useState<MasterFunnelData>({
     leads: 0,
     qualified: 0,
@@ -98,6 +102,8 @@ export default function MasterFunnelPage() {
     qualifiedAppointments: 0,
     sales: 0,
   });
+
+  const [traffic, setTraffic] = useState<number>(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,8 +115,15 @@ export default function MasterFunnelPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await getMasterFunnel(activeRange);
-        if (!cancelled) setData(res);
+        const [funnelRes, trafficRes] = await Promise.all([
+          getMasterFunnel(activeRange),
+          getTrafficForRange(activeRange),
+        ]);
+
+        if (!cancelled) {
+          setData(funnelRes);
+          setTraffic(trafficRes);
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load");
       } finally {
@@ -145,9 +158,17 @@ export default function MasterFunnelPage() {
 
   const actions = (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+        }}
+      >
         {presets.map((p) => {
-          const active = !(customRange.startDate && customRange.endDate) && preset === p.key;
+          const active =
+            !(customRange.startDate && customRange.endDate) && preset === p.key;
 
           return (
             <SecondaryButton
@@ -178,7 +199,7 @@ export default function MasterFunnelPage() {
     <>
       <ReportHeader
         title="Master Funnel"
-        description="Leads → Qualified → Appointments → Sales"
+        description="Website Traffic → Leads → Qualified → Appointments → Sales"
         actions={actions}
         backHref="/reports"
         backLabel="Back"
@@ -199,7 +220,12 @@ export default function MasterFunnelPage() {
           </div>
         ) : null}
 
-        <MasterFunnelView data={data} />
+        {/* Minimal, non-clutter traffic line for now. We'll move it into the view next. */}
+        <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 10 }}>
+          Website Traffic (sessions): <span style={{ color: "var(--text)" }}>{traffic}</span>
+        </div>
+
+        <MasterFunnelView data={{ ...data, traffic }} />
 
         <div style={{ height: 40 }} />
       </Container>
