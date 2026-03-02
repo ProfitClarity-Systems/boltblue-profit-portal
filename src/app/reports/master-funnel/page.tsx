@@ -7,7 +7,11 @@ import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { ReportHeader } from "@/components/app/ReportHeader";
 import { MasterFunnelView } from "./views/MasterFunnelView";
 import { getMasterFunnel, getTrafficForRange } from "./query";
-import type { MasterFunnelData, MasterFunnelDateRange } from "./query";
+import type {
+  MasterFunnelData,
+  MasterFunnelDateRange,
+  SourceKey,
+} from "./query";
 
 type PresetKey =
   | "last7"
@@ -45,10 +49,7 @@ function lastDayOfPrevMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 0);
 }
 
-function presetToRange(
-  preset: PresetKey,
-  now = new Date()
-): MasterFunnelDateRange {
+function presetToRange(preset: PresetKey, now = new Date()): MasterFunnelDateRange {
   const end = toYYYYMMDD(now);
 
   if (preset === "last7") {
@@ -89,13 +90,15 @@ export default function MasterFunnelPage() {
     endDate: "",
   });
 
+  // Source filter (affects BOTH GA traffic + Pipedrive deals)
+  const [sourceKey, setSourceKey] = useState<SourceKey>("all");
+
   const activeRange = useMemo<MasterFunnelDateRange>(() => {
     if (customRange.startDate && customRange.endDate) return customRange;
     return presetToRange(preset);
   }, [preset, customRange]);
 
-  // Keep existing type for now; we'll extend the view next.
-  const [data, setData] = useState<MasterFunnelData>({
+  const [funnel, setFunnel] = useState<MasterFunnelData>({
     leads: 0,
     qualified: 0,
     appointments: 0,
@@ -114,14 +117,15 @@ export default function MasterFunnelPage() {
     async function run() {
       setLoading(true);
       setError(null);
+
       try {
         const [funnelRes, trafficRes] = await Promise.all([
-          getMasterFunnel(activeRange),
-          getTrafficForRange(activeRange),
+          getMasterFunnel(activeRange, sourceKey),
+          getTrafficForRange(activeRange, sourceKey),
         ]);
 
         if (!cancelled) {
-          setData(funnelRes);
+          setFunnel(funnelRes);
           setTraffic(trafficRes);
         }
       } catch (e: any) {
@@ -135,16 +139,11 @@ export default function MasterFunnelPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeRange.startDate, activeRange.endDate]);
+  }, [activeRange.startDate, activeRange.endDate, sourceKey]);
 
   function pickPreset(next: PresetKey) {
     setPreset(next);
     setCustomRange({ startDate: "", endDate: "" }); // clear custom when using preset
-  }
-
-  function onReset() {
-    setPreset("last7");
-    setCustomRange({ startDate: "", endDate: "" });
   }
 
   const presets: Array<{ key: PresetKey; label: string }> = [
@@ -156,19 +155,23 @@ export default function MasterFunnelPage() {
     { key: "fytd", label: "FY to Date" },
   ];
 
+  const sources: Array<{ key: SourceKey; label: string }> = [
+    { key: "all", label: "All" },
+    { key: "google", label: "Google" },
+    { key: "meta", label: "Facebook/IG" }, // ← clearer than “Meta”
+    { key: "direct", label: "Direct" },
+    { key: "referral", label: "Referral" },
+    { key: "phone", label: "Phone" },
+    { key: "networking", label: "Networking" },
+    { key: "pastClient", label: "Past Client" },
+  ];
+
+  // Top-right actions: date controls only
   const actions = (
     <>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          justifyContent: "flex-end",
-        }}
-      >
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
         {presets.map((p) => {
-          const active =
-            !(customRange.startDate && customRange.endDate) && preset === p.key;
+          const active = !(customRange.startDate && customRange.endDate) && preset === p.key;
 
           return (
             <SecondaryButton
@@ -199,14 +202,39 @@ export default function MasterFunnelPage() {
     <>
       <ReportHeader
         title="Master Funnel"
-        description="Website Traffic → Leads → Qualified → Appointments → Sales"
+        description="Website Traffic → Leads → Qualified → Qualified Appointments → Sales"
         actions={actions}
         backHref="/reports"
         backLabel="Back"
       />
 
       <Container>
-        <div style={{ height: 18 }} />
+        <div style={{ height: 14 }} />
+
+        {/* Source pills under title */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>
+            Source
+          </div>
+
+          {sources.map((s) => {
+            const active = sourceKey === s.key;
+            return (
+              <SecondaryButton
+                key={s.key}
+                type="button"
+                onClick={() => setSourceKey(s.key)}
+                style={{
+                  borderColor: active ? "var(--lime)" : undefined,
+                }}
+              >
+                {s.label}
+              </SecondaryButton>
+            );
+          })}
+        </div>
+
+        <div style={{ height: 14 }} />
 
         {error ? (
           <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 10 }}>
@@ -220,12 +248,7 @@ export default function MasterFunnelPage() {
           </div>
         ) : null}
 
-        {/* Minimal, non-clutter traffic line for now. We'll move it into the view next. */}
-        <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 10 }}>
-          Website Traffic (sessions): <span style={{ color: "var(--text)" }}>{traffic}</span>
-        </div>
-
-        <MasterFunnelView data={{ ...data, traffic }} />
+        <MasterFunnelView data={{ ...funnel, traffic }} />
 
         <div style={{ height: 40 }} />
       </Container>
