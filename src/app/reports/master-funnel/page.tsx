@@ -12,6 +12,7 @@ import {
   sourceKeySupportsTrafficStage,
 } from "./query";
 import type { MasterFunnelData, MasterFunnelDateRange, SourceKey } from "./query";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 type PresetKey = "last7" | "mtd" | "lastMonth" | "monthBeforeLast" | "ytd" | "fytd";
 
@@ -76,6 +77,29 @@ function presetToRange(preset: PresetKey, now = new Date()): MasterFunnelDateRan
   const prevStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), 1);
   return { startDate: toYYYYMMDD(prevStart), endDate: toYYYYMMDD(prevEnd) };
 }
+
+const SOURCE_INFO: Record<SourceKey, string> = {
+  allLeads:
+    "All Leads (CRM)\n• Deals: All Pipedrive deals in the Leads pipeline\n• Traffic: Not shown\nUse this for the pure sales funnel regardless of origin.",
+  allWeb:
+    "All Web Leads\n• Deals: Website + Google Ads + Meta Ads/Facebook + Phone/Phone Lead\n• Traffic: All GA sessions (whole site)\nUse this for traffic → lead conversion across the full “website-backed” universe.",
+  google:
+    "Google\n• Deals: leadsource = Google Ads\n• Traffic: GA sessions where source = google and medium is organic/cpc/ppc\nNote: traffic includes organic + paid, but deals are currently “Google Ads” only.",
+  meta:
+    "Facebook/IG (Meta)\n• Deals: leadsource = Meta Ads or Facebook\n• Traffic: GA sessions attributed to facebook/fb/ig (incl common Facebook domains)",
+  website:
+    "Website\n• Deals: leadsource = Website\n• Traffic: GA Direct + GA web referrals (medium referral/referral_profile)\nThis is the general “came from the website” bucket.",
+  referral:
+    "Referral (person)\n• Deals: leadsource = Referral (manually set)\n• Traffic: Not shown\nThis is person-to-person referrals (not GA referral traffic).",
+  phone:
+    "Phone\n• Deals: leadsource = Phone or Phone Lead\n• Traffic: Not shown\nThese are phone-origin leads recorded in CRM.",
+  networking:
+    "Networking\n• Deals: leadsource = Networking\n• Traffic: Not shown",
+  pastClient:
+    "Past Client\n• Deals: leadsource = Past Client\n• Traffic: Not shown",
+  other:
+    "Other (Unmapped)\n• Deals: leadsource is blank/null OR not in the known list\n• Traffic: Not shown\nUse this to spot data that needs mapping cleanup.",
+};
 
 export default function MasterFunnelPage() {
   const [preset, setPreset] = useState<PresetKey>("last7");
@@ -217,7 +241,12 @@ export default function MasterFunnelPage() {
 
         {/* Source pills under title */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>Source</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>
+              Source
+            </div>
+            <InfoTip text={SOURCE_INFO[sourceKey]} ariaLabel="Source filter info" />
+          </div>
 
           {sources.map((s) => {
             const active = sourceKey === s.key;
