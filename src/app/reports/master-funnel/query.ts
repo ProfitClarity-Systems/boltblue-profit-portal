@@ -39,6 +39,13 @@ export type SourceKey =
   | "pastClient"
   | "other"; // unmapped / unknown leadsource
 
+export type CompareResult<T> = {
+  current: T;
+  previous: T;
+  currentRange: MasterFunnelDateRange;
+  previousRange: MasterFunnelDateRange;
+};
+
 /**
  * Controls whether Stage 0 (Website Traffic) should appear.
  */
@@ -83,7 +90,8 @@ function isoStartFromRange(range: MasterFunnelRangeKey) {
   const now = new Date();
   const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
   const start = new Date(now);
-  start.setDate(now.getDate() - days);
+  start.setDate(now.getDate() - (days - 1)); // inclusive length
+  start.setHours(0, 0, 0, 0);
   return start.toISOString();
 }
 
@@ -105,27 +113,48 @@ export function getQualifiedAppointmentPct(data: MasterFunnelData) {
 }
 
 /**
+ * Compute the "previous period" range:
+ * - same number of days as current
+ * - immediately preceding (ends the day before current.startDate)
+ *
+ * Example:
+ * Current: 2026-03-01 → 2026-03-07 (7 days)
+ * Previous: 2026-02-22 → 2026-02-28 (7 days)
+ */
+export function getPreviousPeriodRange(
+  current: MasterFunnelDateRange
+): MasterFunnelDateRange {
+  const start = safeDateFromYMD(current.startDate);
+  const end = safeDateFromYMD(current.endDate);
+
+  // Safe defaults (shouldn't happen in your UI, but keeps the function robust)
+  if (!start || !end) {
+    const now = new Date();
+    const curr: MasterFunnelDateRange = {
+      startDate: toYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)),
+      endDate: toYYYYMMDD(now),
+    };
+    return getPreviousPeriodRange(curr);
+  }
+
+  // inclusive day count
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const dayCount = Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+
+  const prevEnd = new Date(start);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - (dayCount - 1));
+
+  return {
+    startDate: toYYYYMMDD(prevStart),
+    endDate: toYYYYMMDD(prevEnd),
+  };
+}
+
+/**
  * Pipedrive leadsource mapping
- *
- * Known leadsource values in your data:
- * - Website
- * - Referral
- * - Facebook
- * - Meta Ads
- * - Phone
- * - Phone Lead
- * - Networking
- * - Past Client
- * - Google Ads
- * - null / other values (unmapped)
- *
- * Definitions:
- * - website bucket: ONLY "Website"
- * - google bucket: "Google Ads"
- * - meta bucket:   "Meta Ads" + "Facebook"
- * - allWeb bucket: Website + Google Ads + Meta Ads/Facebook + Phone/Phone Lead
- * - referral bucket: person/manual = "Referral"
- * - other bucket: anything null or not in KNOWN values
  */
 const LEADSOURCE_VALUES = {
   website: ["Website"],
@@ -161,11 +190,6 @@ const KNOWN_LEADSOURCES: string[] = Array.from(
 /**
  * GA matching rules (lowercased)
  *
- * Key decision:
- * - We REMOVED "web referral" as a filter.
- * - We MERGED referral mediums into "website" traffic.
- *
- * So:
  * - website traffic = (direct)/(none) + medium=referral(+referral_profile)
  * - google traffic = source=google and medium in organic/cpc/ppc
  * - meta traffic = fb/ig sources (and common facebook domains)
@@ -342,6 +366,41 @@ export async function getTrafficForRange(
   const filtered = rows.filter((r) => matchGaRow(sourceKey, r));
 
   return filtered.reduce((sum, r) => sum + (r.sessions ?? 0), 0);
+}
+
+/**
+ * Compare: funnel (current vs previous period)
+ */
+export async function getMasterFunnelCompare(
+  currentRange: MasterFunnelDateRange,
+  sourceKey: SourceKey = "allLeads"
+): Promise<CompareResult<MasterFunnelData>> {
+  const previousRange = getPreviousPeriodRange(currentRange);
+
+  const [current, previous] = await Promise.all([
+    getMasterFunnel(currentRange, sourceKey),
+    getMasterFunnel(previousRange, sourceKey),
+  ]);
+
+  return { current, previous, currentRange, previousRange };
+}
+
+/**
+ * Compare: traffic (current vs previous period)
+ * - returns 0s when the selected source doesn't support traffic stage
+ */
+export async function getTrafficCompare(
+  currentRange: MasterFunnelDateRange,
+  sourceKey: SourceKey = "allLeads"
+): Promise<CompareResult<number>> {
+  const previousRange = getPreviousPeriodRange(currentRange);
+
+  const [current, previous] = await Promise.all([
+    getTrafficForRange(currentRange, sourceKey),
+    getTrafficForRange(previousRange, sourceKey),
+  ]);
+
+  return { current, previous, currentRange, previousRange };
 }
 
 export function formatRangeLabel(range: MasterFunnelDateRange) {
