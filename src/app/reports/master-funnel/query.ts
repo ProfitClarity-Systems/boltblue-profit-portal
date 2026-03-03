@@ -18,18 +18,38 @@ export type MasterFunnelDateRange = {
 export type MasterFunnelInput = MasterFunnelRangeKey | MasterFunnelDateRange;
 
 /**
- * Lead source filter (developer-defined, not user-created)
- * This is what the UI pills will use.
+ * SourceKey = the pill filters for the Master Funnel report.
+ *
+ * Model:
+ * - allLeads: all CRM leads (NO traffic stage)
+ * - allWeb:   all website-backed leads (YES traffic stage)
+ * - website:  general website bucket (YES traffic stage) = GA direct + GA referral mediums
+ * - google/meta: yes traffic stage
+ * - referral/networking/pastClient/other/phone: no traffic stage
  */
 export type SourceKey =
-  | "all"
+  | "allLeads"
+  | "allWeb"
   | "google"
   | "meta"
-  | "referral"
-  | "direct"
+  | "website"
+  | "referral" // person/manual
   | "phone"
   | "networking"
-  | "pastClient";
+  | "pastClient"
+  | "other"; // unmapped / unknown leadsource
+
+/**
+ * Controls whether Stage 0 (Website Traffic) should appear.
+ */
+export function sourceKeySupportsTrafficStage(sourceKey: SourceKey) {
+  return (
+    sourceKey === "allWeb" ||
+    sourceKey === "google" ||
+    sourceKey === "meta" ||
+    sourceKey === "website"
+  );
+}
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -48,7 +68,7 @@ function safeDateFromYMD(ymd: string) {
 function startIsoFromYMD(ymd: string) {
   const d = safeDateFromYMD(ymd);
   if (!d) return null;
-  return d.toISOString(); // acceptable for now
+  return d.toISOString();
 }
 
 function endExclusiveIsoFromYMD(ymd: string) {
@@ -85,109 +105,174 @@ export function getQualifiedAppointmentPct(data: MasterFunnelData) {
 }
 
 /**
- * Mapping layer
- * - Pipedrive leadsource values are human-entered (Website/Referral/Meta Ads/etc)
- * - GA sources are machine-ish (google, (direct), facebook, fb, ig, referral mediums, etc)
+ * Pipedrive leadsource mapping
  *
- * We normalize by SourceKey.
+ * Known leadsource values in your data:
+ * - Website
+ * - Referral
+ * - Facebook
+ * - Meta Ads
+ * - Phone
+ * - Phone Lead
+ * - Networking
+ * - Past Client
+ * - Google Ads
+ * - null / other values (unmapped)
+ *
+ * Definitions:
+ * - website bucket: ONLY "Website"
+ * - google bucket: "Google Ads"
+ * - meta bucket:   "Meta Ads" + "Facebook"
+ * - allWeb bucket: Website + Google Ads + Meta Ads/Facebook + Phone/Phone Lead
+ * - referral bucket: person/manual = "Referral"
+ * - other bucket: anything null or not in KNOWN values
  */
-const PIPEDRIVE_LEADSOURCE_MAP: Record<Exclude<SourceKey, "all">, string[]> = {
+const LEADSOURCE_VALUES = {
+  website: ["Website"],
   google: ["Google Ads"],
   meta: ["Meta Ads", "Facebook"],
-  referral: ["Referral"],
-  direct: ["Website"], // "Website" in Pipedrive acts as "came via site" (often direct/organic)
   phone: ["Phone", "Phone Lead"],
   networking: ["Networking"],
   pastClient: ["Past Client"],
-};
+  referral: ["Referral"],
+} as const;
 
-// GA matching rules (lowercased)
-const GA_SOURCE_RULES: Record<
-  Exclude<SourceKey, "all">,
-  { sources?: string[]; mediums?: string[]; sourceIncludes?: string[] }
-> = {
+// WIDEN to string[] so .includes(ls: string) is valid
+const ALL_WEB_LEADSOURCES: string[] = [
+  ...LEADSOURCE_VALUES.website,
+  ...LEADSOURCE_VALUES.google,
+  ...LEADSOURCE_VALUES.meta,
+  ...LEADSOURCE_VALUES.phone,
+];
+
+// WIDEN to string[] so .includes(ls: string) is valid
+const KNOWN_LEADSOURCES: string[] = Array.from(
+  new Set<string>([
+    ...LEADSOURCE_VALUES.website,
+    ...LEADSOURCE_VALUES.google,
+    ...LEADSOURCE_VALUES.meta,
+    ...LEADSOURCE_VALUES.phone,
+    ...LEADSOURCE_VALUES.networking,
+    ...LEADSOURCE_VALUES.pastClient,
+    ...LEADSOURCE_VALUES.referral,
+  ])
+);
+
+/**
+ * GA matching rules (lowercased)
+ *
+ * Key decision:
+ * - We REMOVED "web referral" as a filter.
+ * - We MERGED referral mediums into "website" traffic.
+ *
+ * So:
+ * - website traffic = (direct)/(none) + medium=referral(+referral_profile)
+ * - google traffic = source=google and medium in organic/cpc/ppc
+ * - meta traffic = fb/ig sources (and common facebook domains)
+ * - allWeb traffic = all GA sessions (full site sessions)
+ */
+type GaRule = { sources?: string[]; mediums?: string[]; sourceIncludes?: string[] };
+
+const GA_SOURCE_RULES: Record<Exclude<SourceKey, "allLeads" | "other">, GaRule> = {
+  allWeb: {},
+
   google: {
     sources: ["google"],
-    // include all the variants you showed
     mediums: ["organic", "cpc", "ppc"],
   },
+
   meta: {
-    // fb / ig / facebook / domains
     sources: ["facebook", "fb", "ig"],
-    sourceIncludes: ["facebook.com", "m.facebook.com", "l.facebook.com", "business.facebook.com"],
-    // mediums are messy in your data, so don’t over-restrict
+    sourceIncludes: [
+      "facebook.com",
+      "m.facebook.com",
+      "l.facebook.com",
+      "business.facebook.com",
+    ],
   },
-  referral: {
-    mediums: ["referral", "referral_profile"],
-  },
-  direct: {
+
+  website: {
     sources: ["(direct)"],
-    mediums: ["(none)", "none"],
+    mediums: ["(none)", "none", "referral", "referral_profile"],
   },
-  phone: {
-    // GA usually doesn't classify phone as a source; this is mostly a CRM-only category.
-    // We'll return 0 traffic for this filter (unless you later add UTM tagging for call tracking).
-    sources: ["__no_match__"],
-  },
-  networking: {
-    sources: ["__no_match__"],
-  },
-  pastClient: {
-    sources: ["__no_match__"],
-  },
+
+  // CRM-only concepts: never match GA
+  referral: { sources: ["__no_match__"] },
+  phone: { sources: ["__no_match__"] },
+  networking: { sources: ["__no_match__"] },
+  pastClient: { sources: ["__no_match__"] },
 };
 
 function normalizeLower(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
-function applyPipedriveSourceFilter<T extends { in: any; neq?: any }>(
-  q: any,
-  sourceKey: SourceKey
-) {
-  if (sourceKey === "all") return q;
+function applyPipedriveSourceFilter(q: any, sourceKey: SourceKey) {
+  if (sourceKey === "allLeads") return q;
 
-  const allowed = PIPEDRIVE_LEADSOURCE_MAP[sourceKey];
-  if (!allowed || allowed.length === 0) return q;
+  if (sourceKey === "google") return q.in("leadsource", LEADSOURCE_VALUES.google);
+  if (sourceKey === "meta") return q.in("leadsource", LEADSOURCE_VALUES.meta);
+  if (sourceKey === "website") return q.in("leadsource", LEADSOURCE_VALUES.website);
+  if (sourceKey === "referral") return q.in("leadsource", LEADSOURCE_VALUES.referral);
+  if (sourceKey === "phone") return q.in("leadsource", LEADSOURCE_VALUES.phone);
+  if (sourceKey === "networking") return q.in("leadsource", LEADSOURCE_VALUES.networking);
+  if (sourceKey === "pastClient") return q.in("leadsource", LEADSOURCE_VALUES.pastClient);
 
-  return q.in("leadsource", allowed);
+  if (sourceKey === "allWeb") return q.in("leadsource", ALL_WEB_LEADSOURCES);
+
+  if (sourceKey === "other") {
+    // We'll filter client-side after fetch for safety/readability
+    return q;
+  }
+
+  return q;
 }
 
 function matchGaRow(sourceKey: SourceKey, row: { source: string; medium: string }) {
-  if (sourceKey === "all") return true;
+  if (sourceKey === "allWeb") return true;
 
-  const rules = GA_SOURCE_RULES[sourceKey];
+  const rules = GA_SOURCE_RULES[sourceKey as Exclude<SourceKey, "allLeads" | "other">];
   if (!rules) return false;
+
+  const hasAnyRule =
+    (rules.sources && rules.sources.length > 0) ||
+    (rules.mediums && rules.mediums.length > 0) ||
+    (rules.sourceIncludes && rules.sourceIncludes.length > 0);
+
+  if (!hasAnyRule) return true;
 
   const s = normalizeLower(row.source);
   const m = normalizeLower(row.medium);
 
   if (rules.sources && rules.sources.includes(s)) return true;
-
   if (rules.sourceIncludes && rules.sourceIncludes.some((frag) => s.includes(frag))) return true;
-
   if (rules.mediums && rules.mediums.includes(m)) return true;
 
   return false;
 }
 
+function isQualifiedValue(v: any) {
+  const s = String(v ?? "").trim();
+  return s === "45" || s.toLowerCase() === "qualified";
+}
+
 /**
  * Real data load from Supabase (pipedrive_deals)
  * Funnel anchored on deal_created_at.
- *
- * NOTE: Pipedrive "Are They Qualified?" stored as option id (Qualified == 45).
  */
 export async function getMasterFunnel(
   input: MasterFunnelInput,
-  sourceKey: SourceKey = "all"
+  sourceKey: SourceKey = "allLeads"
 ): Promise<MasterFunnelData> {
   const isRangeKey = typeof input === "string";
 
   const startIso = isRangeKey
     ? isoStartFromRange(input)
-    : startIsoFromYMD(input.startDate) ?? isoStartFromRange("7d");
+    : startIsoFromYMD((input as MasterFunnelDateRange).startDate) ?? isoStartFromRange("7d");
 
-  const endExclusiveIso = !isRangeKey ? endExclusiveIsoFromYMD(input.endDate) : null;
+  const endExclusiveIso = !isRangeKey
+    ? endExclusiveIsoFromYMD((input as MasterFunnelDateRange).endDate)
+    : null;
 
   let q = supabase
     .from("pipedrive_deals")
@@ -201,19 +286,22 @@ export async function getMasterFunnel(
 
   if (error) throw new Error(error.message);
 
-  const rows = data ?? [];
+  let rows = data ?? [];
 
-  const isQualified = (v: any) => {
-    const s = String(v ?? "").trim();
-    return s === "45" || s.toLowerCase() === "qualified";
-  };
+  if (sourceKey === "other") {
+    rows = rows.filter((r: any) => {
+      const ls = String(r?.leadsource ?? "").trim();
+      if (!ls) return true; // null/empty
+      return !KNOWN_LEADSOURCES.includes(ls);
+    });
+  }
 
   const leads = rows.length;
-  const qualified = rows.filter((r: any) => isQualified(r.qualified_status)).length;
+  const qualified = rows.filter((r: any) => isQualifiedValue(r.qualified_status)).length;
   const appointments = rows.filter((r: any) => r.sales_meeting_date !== null).length;
 
   const qualifiedAppointments = rows.filter(
-    (r: any) => isQualified(r.qualified_status) && r.sales_meeting_date !== null
+    (r: any) => isQualifiedValue(r.qualified_status) && r.sales_meeting_date !== null
   ).length;
 
   const sales = rows.filter((r: any) => r.status === "won" || r.status === "Won").length;
@@ -223,20 +311,23 @@ export async function getMasterFunnel(
 
 export async function getTrafficForRange(
   input: MasterFunnelInput,
-  sourceKey: SourceKey = "all"
+  sourceKey: SourceKey = "allLeads"
 ): Promise<number> {
+  if (!sourceKeySupportsTrafficStage(sourceKey)) return 0;
+
   const isRangeKey = typeof input === "string";
 
   const startIso = isRangeKey
     ? isoStartFromRange(input)
-    : startIsoFromYMD(input.startDate) ?? isoStartFromRange("7d");
+    : startIsoFromYMD((input as MasterFunnelDateRange).startDate) ?? isoStartFromRange("7d");
 
-  const endExclusiveIso = !isRangeKey ? endExclusiveIsoFromYMD(input.endDate) : null;
+  const endExclusiveIso = !isRangeKey
+    ? endExclusiveIsoFromYMD((input as MasterFunnelDateRange).endDate)
+    : null;
 
   const startDate = new Date(startIso).toISOString().slice(0, 10);
   const endExclusiveDate = endExclusiveIso ? new Date(endExclusiveIso).toISOString().slice(0, 10) : null;
 
-  // Fetch only the columns we need for filtering
   const q = supabase
     .from("ga4_daily_traffic")
     .select("source, medium, sessions")
@@ -248,15 +339,11 @@ export async function getTrafficForRange(
 
   const rows = (data ?? []) as Array<{ source: string; medium: string; sessions: number }>;
 
-  // Apply mapping in-memory (fast enough for daily rows + keeps logic readable)
-  const filtered = sourceKey === "all" ? rows : rows.filter((r) => matchGaRow(sourceKey, r));
+  const filtered = rows.filter((r) => matchGaRow(sourceKey, r));
 
   return filtered.reduce((sum, r) => sum + (r.sessions ?? 0), 0);
 }
 
-/**
- * Optional helper for your UI: builds the label shown in the range pill.
- */
 export function formatRangeLabel(range: MasterFunnelDateRange) {
   const from = safeDateFromYMD(range.startDate);
   const to = safeDateFromYMD(range.endDate);

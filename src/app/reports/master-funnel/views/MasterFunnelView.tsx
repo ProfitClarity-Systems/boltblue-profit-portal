@@ -66,7 +66,10 @@ function Stage({
             top: 14,
             right: 14,
             fontSize: 12,
-            color: rightBadge.tone === "warn" ? "rgba(255,210,120,0.95)" : "var(--text-muted)",
+            color:
+              rightBadge.tone === "warn"
+                ? "rgba(255,210,120,0.95)"
+                : "var(--text-muted)",
             border:
               rightBadge.tone === "warn"
                 ? "1px solid rgba(255,210,120,0.35)"
@@ -147,15 +150,8 @@ function Arrow({ pct }: { pct: number }) {
   );
 }
 
-function Dial({
-  label,
-  valuePct,
-}: {
-  label: string;
-  valuePct: number;
-}) {
+function Dial({ label, valuePct }: { label: string; valuePct: number }) {
   const v = clamp(valuePct, 0, 100);
-  // Use conic-gradient for ring + subtle lime glow
   const ringBg = `conic-gradient(rgba(164,255,0,0.95) ${v}%, rgba(255,255,255,0.10) 0)`;
 
   return (
@@ -196,16 +192,12 @@ function Dial({
               backdropFilter: "blur(6px)",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 950 }}>
-              {formatPct(v)}
-            </div>
+            <div style={{ fontSize: 18, fontWeight: 950 }}>{formatPct(v)}</div>
           </div>
         </div>
 
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            Conversion
-          </div>
+          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Conversion</div>
           <div style={{ marginTop: 6, fontSize: 24, fontWeight: 950, lineHeight: 1.1 }}>
             {formatPct(v)}
           </div>
@@ -218,19 +210,25 @@ function Dial({
   );
 }
 
-export function MasterFunnelView({ data }: { data: MasterFunnelViewData }) {
+export function MasterFunnelView({
+  data,
+  showTrafficStage,
+}: {
+  data: MasterFunnelViewData;
+  showTrafficStage: boolean;
+}) {
   const unqualifiedAppointments = Math.max(
     0,
     (data.appointments ?? 0) - (data.qualifiedAppointments ?? 0)
   );
 
-  // Spine conversions (your preferred spine)
-  const trafficToLead = pct(data.leads, data.traffic);
+  // Core spine conversions (only compute/visualize what exists)
+  const trafficToLead = showTrafficStage ? pct(data.leads, data.traffic) : 0;
   const leadToQualified = pct(data.qualified, data.leads);
   const qualifiedToQualifiedAppt = pct(data.qualifiedAppointments, data.qualified);
   const qualifiedApptToSale = pct(data.sales, data.qualifiedAppointments);
 
-  // Right-side dials (what your brother wants)
+  // Right-side dials (pure CRM metrics; always valid)
   const leadToSale = pct(data.sales, data.leads);
   const qualifiedToSale = pct(data.sales, data.qualified);
 
@@ -253,16 +251,17 @@ export function MasterFunnelView({ data }: { data: MasterFunnelViewData }) {
           border: "1px solid rgba(255,255,255,0.08)",
         }}
       >
-        <Stage label="Website Traffic" value={formatNumber(data.traffic)} />
-
-        <Arrow pct={trafficToLead} />
+        {showTrafficStage ? (
+          <>
+            <Stage label="Website Traffic" value={formatNumber(data.traffic)} />
+            <Arrow pct={trafficToLead} />
+          </>
+        ) : null}
 
         <Stage label="Leads" value={formatNumber(data.leads)} />
-
         <Arrow pct={leadToQualified} />
 
         <Stage label="Qualified" value={formatNumber(data.qualified)} />
-
         <Arrow pct={qualifiedToQualifiedAppt} />
 
         <Stage
@@ -274,7 +273,6 @@ export function MasterFunnelView({ data }: { data: MasterFunnelViewData }) {
           }}
           subLine={`Total appointments: ${formatNumber(data.appointments)}`}
         />
-
         <Arrow pct={qualifiedApptToSale} />
 
         <Stage label="Sales" value={formatNumber(data.sales)} highlight />

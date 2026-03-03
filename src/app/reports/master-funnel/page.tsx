@@ -6,20 +6,14 @@ import { SecondaryButton } from "@/components/ui/SecondaryButton";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { ReportHeader } from "@/components/app/ReportHeader";
 import { MasterFunnelView } from "./views/MasterFunnelView";
-import { getMasterFunnel, getTrafficForRange } from "./query";
-import type {
-  MasterFunnelData,
-  MasterFunnelDateRange,
-  SourceKey,
+import {
+  getMasterFunnel,
+  getTrafficForRange,
+  sourceKeySupportsTrafficStage,
 } from "./query";
+import type { MasterFunnelData, MasterFunnelDateRange, SourceKey } from "./query";
 
-type PresetKey =
-  | "last7"
-  | "mtd"
-  | "lastMonth"
-  | "monthBeforeLast"
-  | "ytd"
-  | "fytd";
+type PresetKey = "last7" | "mtd" | "lastMonth" | "monthBeforeLast" | "ytd" | "fytd";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -90,8 +84,10 @@ export default function MasterFunnelPage() {
     endDate: "",
   });
 
-  // Source filter (affects BOTH GA traffic + Pipedrive deals)
-  const [sourceKey, setSourceKey] = useState<SourceKey>("all");
+  // Default: All Leads (CRM-only funnel; no traffic stage)
+  const [sourceKey, setSourceKey] = useState<SourceKey>("allLeads");
+
+  const showTrafficStage = sourceKeySupportsTrafficStage(sourceKey);
 
   const activeRange = useMemo<MasterFunnelDateRange>(() => {
     if (customRange.startDate && customRange.endDate) return customRange;
@@ -121,7 +117,7 @@ export default function MasterFunnelPage() {
       try {
         const [funnelRes, trafficRes] = await Promise.all([
           getMasterFunnel(activeRange, sourceKey),
-          getTrafficForRange(activeRange, sourceKey),
+          showTrafficStage ? getTrafficForRange(activeRange, sourceKey) : Promise.resolve(0),
         ]);
 
         if (!cancelled) {
@@ -139,7 +135,7 @@ export default function MasterFunnelPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeRange.startDate, activeRange.endDate, sourceKey]);
+  }, [activeRange.startDate, activeRange.endDate, sourceKey, showTrafficStage]);
 
   function pickPreset(next: PresetKey) {
     setPreset(next);
@@ -156,17 +152,21 @@ export default function MasterFunnelPage() {
   ];
 
   const sources: Array<{ key: SourceKey; label: string }> = [
-    { key: "all", label: "All" },
+    { key: "allLeads", label: "All Leads" },
+    { key: "allWeb", label: "All Web Leads" },
+
     { key: "google", label: "Google" },
-    { key: "meta", label: "Facebook/IG" }, // ← clearer than “Meta”
-    { key: "direct", label: "Direct" },
-    { key: "referral", label: "Referral" },
+    { key: "meta", label: "Facebook/IG" },
+    { key: "website", label: "Website" },
+
+    { key: "referral", label: "Referral (person)" },
     { key: "phone", label: "Phone" },
     { key: "networking", label: "Networking" },
     { key: "pastClient", label: "Past Client" },
+
+    { key: "other", label: "Other" },
   ];
 
-  // Top-right actions: date controls only
   const actions = (
     <>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -202,7 +202,11 @@ export default function MasterFunnelPage() {
     <>
       <ReportHeader
         title="Master Funnel"
-        description="Website Traffic → Leads → Qualified → Qualified Appointments → Sales"
+        description={
+          showTrafficStage
+            ? "Website Traffic → Leads → Qualified → Qualified Appointments → Sales"
+            : "Leads → Qualified → Qualified Appointments → Sales"
+        }
         actions={actions}
         backHref="/reports"
         backLabel="Back"
@@ -213,9 +217,7 @@ export default function MasterFunnelPage() {
 
         {/* Source pills under title */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>
-            Source
-          </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>Source</div>
 
           {sources.map((s) => {
             const active = sourceKey === s.key;
@@ -248,7 +250,7 @@ export default function MasterFunnelPage() {
           </div>
         ) : null}
 
-        <MasterFunnelView data={{ ...funnel, traffic }} />
+        <MasterFunnelView data={{ ...funnel, traffic }} showTrafficStage={showTrafficStage} />
 
         <div style={{ height: 40 }} />
       </Container>
