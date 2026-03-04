@@ -8,6 +8,7 @@ import { ReportHeader } from "@/components/app/ReportHeader";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { MasterFunnelView } from "./views/MasterFunnelView";
 import { MasterFunnelCompareView } from "./views/MasterFunnelCompareView";
+import { MasterFunnelTrendView } from "./views/MasterFunnelTrendView";
 import {
   getMasterFunnel,
   getTrafficForRange,
@@ -21,9 +22,11 @@ import type {
   SourceKey,
   CompareResult,
 } from "./query";
+import { getMasterFunnelTrend } from "./query.trend";
+import type { TrendBucket } from "./query.trend";
 
 type PresetKey = "last7" | "mtd" | "lastMonth" | "monthBeforeLast" | "ytd" | "fytd";
-type ViewMode = "snapshot" | "compare";
+type ViewMode = "snapshot" | "compare" | "trend";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -141,6 +144,8 @@ export default function MasterFunnelPage() {
   const [funnelCompare, setFunnelCompare] = useState<CompareResult<MasterFunnelData> | null>(null);
   const [trafficCompare, setTrafficCompare] = useState<CompareResult<number> | null>(null);
 
+  const [trendBuckets, setTrendBuckets] = useState<TrendBucket[] | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,10 +166,25 @@ export default function MasterFunnelPage() {
           if (!cancelled) {
             setFunnelCompare(fC);
             setTrafficCompare(tC);
+            setTrendBuckets(null);
 
             // Keep snapshot values in sync so switching back feels instant
             setFunnel(fC.current);
             setTraffic(tC.current);
+          }
+          return;
+        }
+
+        if (viewMode === "trend") {
+          const buckets = await getMasterFunnelTrend(activeRange, sourceKey);
+
+          if (!cancelled) {
+            setTrendBuckets(buckets);
+            setFunnelCompare(null);
+            setTrafficCompare(null);
+
+            // Optional: keep snapshot roughly aligned to last bucket for continuity
+            // (we leave snapshot numbers as-is unless you want them to mirror totals)
           }
           return;
         }
@@ -180,6 +200,7 @@ export default function MasterFunnelPage() {
           setTraffic(trafficRes);
           setFunnelCompare(null);
           setTrafficCompare(null);
+          setTrendBuckets(null);
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load");
@@ -292,6 +313,14 @@ export default function MasterFunnelPage() {
           >
             Compare
           </SecondaryButton>
+
+          <SecondaryButton
+            type="button"
+            onClick={() => setViewMode("trend")}
+            style={{ borderColor: viewMode === "trend" ? "var(--lime)" : undefined }}
+          >
+            Trend
+          </SecondaryButton>
         </div>
 
         <div style={{ height: 12 }} />
@@ -338,6 +367,11 @@ export default function MasterFunnelPage() {
           <MasterFunnelCompareView
             funnelCompare={funnelCompare}
             trafficCompare={trafficCompare}
+            showTrafficStage={showTrafficStage}
+          />
+        ) : viewMode === "trend" ? (
+          <MasterFunnelTrendView
+            buckets={trendBuckets ?? []}
             showTrafficStage={showTrafficStage}
           />
         ) : (
