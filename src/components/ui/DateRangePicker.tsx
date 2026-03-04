@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
 import "react-day-picker/dist/style.css";
+import { SecondaryButton } from "@/components/ui/SecondaryButton";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -104,31 +105,44 @@ export function DateRangePicker(props: {
     return draft?.from ?? committed?.from ?? new Date();
   }, [draft?.from, committed?.from]);
 
+  // "Custom" = both dates selected (committed)
+  const isCustomActive = Boolean(committed?.from && committed?.to);
+
+  const canApply = Boolean(draft?.from);
+
   return (
     <div ref={anchorRef} style={{ position: "relative" }}>
+      {/* Trigger: match SecondaryButton feel (neutral → lime when active) */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        data-active={isCustomActive ? "true" : "false"}
         style={{
           display: "inline-flex",
           alignItems: "center",
           gap: 10,
-          padding: "10px 14px",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--border-strong)",
-          background: "rgba(255,255,255,0.03)",
-          color: "var(--text)",
-          fontWeight: 900,
+          height: 44,
+          padding: "0 18px",
+          borderRadius: 999,
+          border: isCustomActive
+            ? "1px solid var(--lime)"
+            : "1px solid rgba(255,255,255,0.18)",
+          background: "transparent",
+          color: isCustomActive ? "var(--lime)" : "rgba(255,255,255,0.85)",
+          fontWeight: 800,
           letterSpacing: 0.2,
           cursor: "pointer",
           userSelect: "none",
+          transition: "border-color 140ms ease, color 140ms ease",
+          whiteSpace: "nowrap",
         }}
       >
         <span
           style={{
-            color: "var(--text-faint)",
+            color: isCustomActive ? "var(--lime)" : "rgba(255,255,255,0.55)",
             fontSize: 11,
             letterSpacing: 1,
+            fontWeight: 900,
           }}
         >
           RANGE
@@ -143,12 +157,13 @@ export function DateRangePicker(props: {
             right: 0,
             top: "calc(100% + 10px)",
             zIndex: 50,
-            borderRadius: "var(--radius-lg)",
-            border: "1px solid var(--border)",
-            background: "rgba(10, 14, 13, 0.92)",
+            borderRadius: 18,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(10,10,10,0.96)",
+            // keep blur subtle, no glow
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
-            boxShadow: "0 20px 70px rgba(0,0,0,0.35)",
+            boxShadow: "0 18px 60px rgba(0,0,0,0.45)",
             padding: 14,
             minWidth: 440,
           }}
@@ -184,7 +199,7 @@ export function DateRangePicker(props: {
               display: flex;
               align-items: center;
               justify-content: flex-start;
-              gap: 16px;
+              gap: 14px;
               margin: 2px 0 10px 0;
               padding: 0 2px;
             }
@@ -192,35 +207,37 @@ export function DateRangePicker(props: {
             .pp-captionLabel {
               font-weight: 950;
               letter-spacing: 0.2px;
-              color: var(--text);
-              margin-left: 10px;
+              color: rgba(255,255,255,0.92);
+              margin-left: 8px;
             }
 
             .pp-nav { display: inline-flex; gap: 8px; }
 
+            /* Nav buttons: NO glow, NO lift */
             .pp-rdp .pp-nav button,
             .pp-rdp .pp-navBtn {
               width: 34px !important;
               height: 34px !important;
               border-radius: 999px !important;
-              border: 1px solid var(--border-strong) !important;
-              background: rgba(255,255,255,0.02) !important;
+              border: 1px solid rgba(255,255,255,0.18) !important;
+              background: transparent !important;
               display: inline-flex !important;
               align-items: center !important;
               justify-content: center !important;
-              color: var(--text) !important;
+              color: rgba(255,255,255,0.85) !important;
               cursor: pointer !important;
-              transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+              transition: border-color 140ms ease, color 140ms ease !important;
               position: relative !important;
               flex: 0 0 auto;
             }
 
             .pp-rdp .pp-nav button:hover,
             .pp-rdp .pp-navBtn:hover {
-              background: rgba(164,255,0,0.06) !important;
-              border-color: rgba(164,255,0,0.22) !important;
-              box-shadow: 0 0 18px rgba(164,255,0,0.10);
-              transform: translateY(-1px);
+              border-color: var(--lime) !important;
+              color: var(--lime) !important;
+              background: transparent !important;
+              box-shadow: none !important;
+              transform: none !important;
             }
 
             .pp-rdp .pp-nav button svg { display: none !important; }
@@ -250,7 +267,7 @@ export function DateRangePicker(props: {
             }
 
             .pp-headCell {
-              color: var(--text-faint);
+              color: rgba(255,255,255,0.55);
               font-weight: 900;
               font-size: 11px;
               letter-spacing: 1px;
@@ -265,6 +282,7 @@ export function DateRangePicker(props: {
               text-align: center;
             }
 
+            /* Day button: clean, no glow */
             .pp-dayBtn {
               width: 40px !important;
               height: 40px !important;
@@ -273,47 +291,51 @@ export function DateRangePicker(props: {
               align-items: center !important;
               justify-content: center !important;
 
-              background: rgba(255,255,255,0.02) !important;
-              border: 1px solid rgba(255,255,255,0.10) !important;
-              color: var(--text) !important;
-              font-weight: 900 !important;
+              background: transparent !important;
+              border: 1px solid rgba(255,255,255,0.12) !important;
+              color: rgba(255,255,255,0.88) !important;
+              font-weight: 850 !important;
 
               cursor: pointer !important;
               user-select: none !important;
-              transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+              transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease !important;
               position: relative !important;
               z-index: 2 !important;
             }
 
             .pp-dayBtn:hover {
-              background: rgba(164,255,0,0.06) !important;
-              border-color: rgba(164,255,0,0.22) !important;
-              box-shadow: 0 0 18px rgba(164,255,0,0.10);
-              transform: translateY(-1px);
+              border-color: var(--lime) !important;
+              color: var(--lime) !important;
+              background: transparent !important;
+              box-shadow: none !important;
+              transform: none !important;
             }
 
             .pp-today .pp-dayBtn {
-              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22);
+              border-color: rgba(255,255,255,0.22) !important;
             }
 
             .pp-disabled .pp-dayBtn {
-              opacity: 0.30 !important;
+              opacity: 0.28 !important;
               cursor: not-allowed !important;
-              transform: none !important;
               box-shadow: none !important;
             }
 
+            /* Range middle: subtle flat tint, no glow */
             .pp-rangeMid .pp-dayBtn {
-              background: rgba(164,255,0,0.08) !important;
+              background: rgba(164,255,0,0.10) !important;
               border-color: rgba(164,255,0,0.18) !important;
+              color: rgba(255,255,255,0.92) !important;
             }
 
+            /* Selected/Start/End: SOLID lime, dark text, no glow */
             .pp-selected .pp-dayBtn,
             .pp-rangeStart .pp-dayBtn,
             .pp-rangeEnd .pp-dayBtn {
-              background: rgba(164,255,0,0.14) !important;
-              border-color: rgba(164,255,0,0.45) !important;
-              box-shadow: 0 0 18px rgba(164,255,0,0.12);
+              background: var(--lime) !important;
+              border-color: var(--lime) !important;
+              color: rgba(10,10,10,0.92) !important;
+              box-shadow: none !important;
               font-weight: 950 !important;
             }
 
@@ -321,10 +343,12 @@ export function DateRangePicker(props: {
             .pp-rdp .pp-nav button:focus-visible,
             .pp-navBtn:focus-visible {
               outline: none !important;
-              box-shadow: 0 0 0 3px rgba(164,255,0,0.18) !important;
+              box-shadow: none !important;
+              border-color: var(--lime) !important;
             }
           `}</style>
 
+          {/* From / To chips */}
           <div
             style={{
               display: "grid",
@@ -335,9 +359,9 @@ export function DateRangePicker(props: {
           >
             <div
               style={{
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-strong)",
-                background: "rgba(255,255,255,0.03)",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "transparent",
                 padding: "10px 12px",
               }}
             >
@@ -346,19 +370,21 @@ export function DateRangePicker(props: {
                   fontSize: 11,
                   letterSpacing: 1,
                   fontWeight: 900,
-                  color: "var(--text-faint)",
+                  color: "rgba(255,255,255,0.55)",
                 }}
               >
                 FROM
               </div>
-              <div style={{ marginTop: 6, fontWeight: 950 }}>{fromLabel}</div>
+              <div style={{ marginTop: 6, fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>
+                {fromLabel}
+              </div>
             </div>
 
             <div
               style={{
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-strong)",
-                background: "rgba(255,255,255,0.03)",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "transparent",
                 padding: "10px 12px",
               }}
             >
@@ -367,12 +393,14 @@ export function DateRangePicker(props: {
                   fontSize: 11,
                   letterSpacing: 1,
                   fontWeight: 900,
-                  color: "var(--text-faint)",
+                  color: "rgba(255,255,255,0.55)",
                 }}
               >
                 TO
               </div>
-              <div style={{ marginTop: 6, fontWeight: 950 }}>{toLabel}</div>
+              <div style={{ marginTop: 6, fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>
+                {toLabel}
+              </div>
             </div>
           </div>
 
@@ -407,6 +435,7 @@ export function DateRangePicker(props: {
             }}
           />
 
+          {/* Actions */}
           <div
             style={{
               marginTop: 12,
@@ -416,36 +445,26 @@ export function DateRangePicker(props: {
               gap: 8,
             }}
           >
-            <button
-              type="button"
-              onClick={clearSelection}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-strong)",
-                background: "rgba(255,255,255,0.03)",
-                color: "var(--text)",
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
-            >
+            <SecondaryButton type="button" size="sm" onClick={clearSelection}>
               Clear
-            </button>
+            </SecondaryButton>
 
             <button
               type="button"
               onClick={applyDraft}
-              disabled={!draft?.from}
+              disabled={!canApply}
               style={{
-                padding: "10px 12px",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid rgba(164,255,0,0.38)",
-                background: "rgba(164,255,0,0.10)",
-                color: "var(--lime)",
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 999,
+                border: "1px solid var(--lime)",
+                background: canApply ? "var(--lime)" : "rgba(164,255,0,0.25)",
+                color: "rgba(10,10,10,0.92)",
                 fontWeight: 950,
-                cursor: draft?.from ? "pointer" : "not-allowed",
-                opacity: draft?.from ? 1 : 0.6,
-                boxShadow: "0 0 18px rgba(164,255,0,0.10)",
+                letterSpacing: 0.2,
+                cursor: canApply ? "pointer" : "not-allowed",
+                opacity: canApply ? 1 : 0.6,
+                transition: "opacity 140ms ease, background-color 140ms ease",
               }}
             >
               Apply
