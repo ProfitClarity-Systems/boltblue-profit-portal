@@ -6,9 +6,11 @@ import { SecondaryButton } from "@/components/ui/SecondaryButton";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { ReportHeader } from "@/components/app/ReportHeader";
 import { InfoTip } from "@/components/ui/InfoTip";
+
 import { MasterFunnelView } from "./views/MasterFunnelView";
 import { MasterFunnelCompareView } from "./views/MasterFunnelCompareView";
 import { MasterFunnelTrendView } from "./views/MasterFunnelTrendView";
+
 import {
   getMasterFunnel,
   getTrafficForRange,
@@ -22,10 +24,17 @@ import type {
   SourceKey,
   CompareResult,
 } from "./query";
+
 import { getMasterFunnelTrend } from "./query.trend";
 import type { TrendBucket } from "./query.trend";
 
-type PresetKey = "last7" | "mtd" | "lastMonth" | "monthBeforeLast" | "ytd" | "fytd";
+type PresetKey =
+  | "last7"
+  | "mtd"
+  | "lastMonth"
+  | "monthBeforeLast"
+  | "ytd"
+  | "fytd";
 type ViewMode = "snapshot" | "compare" | "trend";
 
 function pad2(n: number) {
@@ -56,7 +65,10 @@ function lastDayOfPrevMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 0);
 }
 
-function presetToRange(preset: PresetKey, now = new Date()): MasterFunnelDateRange {
+function presetToRange(
+  preset: PresetKey,
+  now = new Date()
+): MasterFunnelDateRange {
   const end = toYYYYMMDD(now);
 
   if (preset === "last7") {
@@ -123,7 +135,6 @@ export default function MasterFunnelPage() {
   });
 
   const [sourceKey, setSourceKey] = useState<SourceKey>("allLeads");
-
   const showTrafficStage = sourceKeySupportsTrafficStage(sourceKey);
 
   const activeRange = useMemo<MasterFunnelDateRange>(() => {
@@ -138,11 +149,12 @@ export default function MasterFunnelPage() {
     qualifiedAppointments: 0,
     sales: 0,
   });
-
   const [traffic, setTraffic] = useState<number>(0);
 
-  const [funnelCompare, setFunnelCompare] = useState<CompareResult<MasterFunnelData> | null>(null);
-  const [trafficCompare, setTrafficCompare] = useState<CompareResult<number> | null>(null);
+  const [funnelCompare, setFunnelCompare] =
+    useState<CompareResult<MasterFunnelData> | null>(null);
+  const [trafficCompare, setTrafficCompare] =
+    useState<CompareResult<number> | null>(null);
 
   const [trendBuckets, setTrendBuckets] = useState<TrendBucket[] | null>(null);
 
@@ -168,7 +180,7 @@ export default function MasterFunnelPage() {
             setTrafficCompare(tC);
             setTrendBuckets(null);
 
-            // Keep snapshot values in sync so switching back feels instant
+            // Keep snapshot values in sync for quick toggling back
             setFunnel(fC.current);
             setTraffic(tC.current);
           }
@@ -182,9 +194,6 @@ export default function MasterFunnelPage() {
             setTrendBuckets(buckets);
             setFunnelCompare(null);
             setTrafficCompare(null);
-
-            // Optional: keep snapshot roughly aligned to last bucket for continuity
-            // (we leave snapshot numbers as-is unless you want them to mirror totals)
           }
           return;
         }
@@ -192,7 +201,9 @@ export default function MasterFunnelPage() {
         // Snapshot
         const [funnelRes, trafficRes] = await Promise.all([
           getMasterFunnel(activeRange, sourceKey),
-          showTrafficStage ? getTrafficForRange(activeRange, sourceKey) : Promise.resolve(0),
+          showTrafficStage
+            ? getTrafficForRange(activeRange, sourceKey)
+            : Promise.resolve(0),
         ]);
 
         if (!cancelled) {
@@ -213,7 +224,13 @@ export default function MasterFunnelPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeRange.startDate, activeRange.endDate, sourceKey, showTrafficStage, viewMode]);
+  }, [
+    activeRange.startDate,
+    activeRange.endDate,
+    sourceKey,
+    showTrafficStage,
+    viewMode,
+  ]);
 
   function pickPreset(next: PresetKey) {
     setPreset(next);
@@ -232,32 +249,36 @@ export default function MasterFunnelPage() {
   const sources: Array<{ key: SourceKey; label: string }> = [
     { key: "allLeads", label: "All Leads" },
     { key: "allWeb", label: "All Web Leads" },
-
     { key: "google", label: "Google" },
     { key: "meta", label: "Facebook/IG" },
     { key: "website", label: "Website" },
-
     { key: "referral", label: "Referral (person)" },
     { key: "phone", label: "Phone" },
     { key: "networking", label: "Networking" },
     { key: "pastClient", label: "Past Client" },
-
     { key: "other", label: "Other" },
   ];
 
-  // Top-right actions: date controls only
   const actions = (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+        }}
+      >
         {presets.map((p) => {
-          const active = !(customRange.startDate && customRange.endDate) && preset === p.key;
+          const active =
+            !(customRange.startDate && customRange.endDate) && preset === p.key;
 
           return (
             <SecondaryButton
               key={p.key}
               type="button"
+              active={active}
               onClick={() => pickPreset(p.key)}
-              style={{ borderColor: active ? "var(--lime)" : undefined }}
             >
               {p.label}
             </SecondaryButton>
@@ -274,6 +295,9 @@ export default function MasterFunnelPage() {
       </div>
     </>
   );
+
+  const tier1 = sources.filter((s) => s.key === "allLeads" || s.key === "allWeb");
+  const tier2 = sources.filter((s) => s.key !== "allLeads" && s.key !== "allWeb");
 
   return (
     <>
@@ -292,61 +316,98 @@ export default function MasterFunnelPage() {
       <Container>
         <div style={{ height: 14 }} />
 
-        {/* Report view toggle */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>
+        {/* Controls rail */}
+        <div
+          style={{
+            borderRadius: 18,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(0,0,0,0.10)",
+            padding: 16,
+          }}
+        >
+          {/* Report view */}
+          <div
+            style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}
+          >
             Report view
           </div>
 
-          <SecondaryButton
-            type="button"
-            onClick={() => setViewMode("snapshot")}
-            style={{ borderColor: viewMode === "snapshot" ? "var(--lime)" : undefined }}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <SecondaryButton
+              active={viewMode === "snapshot"}
+              onClick={() => setViewMode("snapshot")}
+            >
+              Snapshot
+            </SecondaryButton>
+            <SecondaryButton
+              active={viewMode === "compare"}
+              onClick={() => setViewMode("compare")}
+            >
+              Compare
+            </SecondaryButton>
+            <SecondaryButton
+              active={viewMode === "trend"}
+              onClick={() => setViewMode("trend")}
+            >
+              Trend
+            </SecondaryButton>
+          </div>
+
+          {/* Divider */}
+          <div
+            style={{
+              height: 1,
+              background: "rgba(255,255,255,0.08)",
+              margin: "14px 0",
+            }}
+          />
+
+          {/* Source label */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 10,
+            }}
           >
-            Snapshot
-          </SecondaryButton>
-
-          <SecondaryButton
-            type="button"
-            onClick={() => setViewMode("compare")}
-            style={{ borderColor: viewMode === "compare" ? "var(--lime)" : undefined }}
-          >
-            Compare
-          </SecondaryButton>
-
-          <SecondaryButton
-            type="button"
-            onClick={() => setViewMode("trend")}
-            style={{ borderColor: viewMode === "trend" ? "var(--lime)" : undefined }}
-          >
-            Trend
-          </SecondaryButton>
-        </div>
-
-        <div style={{ height: 12 }} />
-
-        {/* Source pills */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>
-              Source
-            </div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Source</div>
             <InfoTip text={SOURCE_INFO[sourceKey]} ariaLabel="Source filter info" />
           </div>
 
-          {sources.map((s) => {
-            const active = sourceKey === s.key;
-            return (
-              <SecondaryButton
-                key={s.key}
-                type="button"
-                onClick={() => setSourceKey(s.key)}
-                style={{ borderColor: active ? "var(--lime)" : undefined }}
-              >
-                {s.label}
-              </SecondaryButton>
-            );
-          })}
+          {/* Tier 1 */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            {tier1.map((s) => {
+              const active = sourceKey === s.key;
+              return (
+                <SecondaryButton
+                  key={s.key}
+                  size="md"
+                  active={active}
+                  onClick={() => setSourceKey(s.key)}
+                >
+                  {s.label}
+                </SecondaryButton>
+              );
+            })}
+          </div>
+
+          {/* Tier 2 */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {tier2.map((s) => {
+              const active = sourceKey === s.key;
+              return (
+                <SecondaryButton
+                  key={s.key}
+                  size="sm"
+                  active={active}
+                  onClick={() => setSourceKey(s.key)}
+                >
+                  {s.label}
+                </SecondaryButton>
+              );
+            })}
+          </div>
         </div>
 
         <div style={{ height: 14 }} />
@@ -370,10 +431,7 @@ export default function MasterFunnelPage() {
             showTrafficStage={showTrafficStage}
           />
         ) : viewMode === "trend" ? (
-          <MasterFunnelTrendView
-            buckets={trendBuckets ?? []}
-            showTrafficStage={showTrafficStage}
-          />
+          <MasterFunnelTrendView buckets={trendBuckets ?? []} showTrafficStage={showTrafficStage} />
         ) : (
           <MasterFunnelView data={{ ...funnel, traffic }} showTrafficStage={showTrafficStage} />
         )}
