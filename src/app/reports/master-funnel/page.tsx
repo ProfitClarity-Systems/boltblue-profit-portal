@@ -28,13 +28,7 @@ import type {
 import { getMasterFunnelTrend } from "./query.trend";
 import type { TrendBucket } from "./query.trend";
 
-type PresetKey =
-  | "last7"
-  | "mtd"
-  | "lastMonth"
-  | "monthBeforeLast"
-  | "ytd"
-  | "fytd";
+type PresetKey = "last7" | "mtd" | "lastMonth" | "monthBeforeLast" | "ytd" | "fytd";
 type ViewMode = "snapshot" | "compare" | "trend";
 
 function pad2(n: number) {
@@ -65,10 +59,7 @@ function lastDayOfPrevMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 0);
 }
 
-function presetToRange(
-  preset: PresetKey,
-  now = new Date()
-): MasterFunnelDateRange {
+function presetToRange(preset: PresetKey, now = new Date()): MasterFunnelDateRange {
   const end = toYYYYMMDD(now);
 
   if (preset === "last7") {
@@ -137,6 +128,8 @@ export default function MasterFunnelPage() {
   const [sourceKey, setSourceKey] = useState<SourceKey>("allLeads");
   const showTrafficStage = sourceKeySupportsTrafficStage(sourceKey);
 
+  const isUsingCustomRange = Boolean(customRange.startDate && customRange.endDate);
+
   const activeRange = useMemo<MasterFunnelDateRange>(() => {
     if (customRange.startDate && customRange.endDate) return customRange;
     return presetToRange(preset);
@@ -151,10 +144,8 @@ export default function MasterFunnelPage() {
   });
   const [traffic, setTraffic] = useState<number>(0);
 
-  const [funnelCompare, setFunnelCompare] =
-    useState<CompareResult<MasterFunnelData> | null>(null);
-  const [trafficCompare, setTrafficCompare] =
-    useState<CompareResult<number> | null>(null);
+  const [funnelCompare, setFunnelCompare] = useState<CompareResult<MasterFunnelData> | null>(null);
+  const [trafficCompare, setTrafficCompare] = useState<CompareResult<number> | null>(null);
 
   const [trendBuckets, setTrendBuckets] = useState<TrendBucket[] | null>(null);
 
@@ -201,9 +192,7 @@ export default function MasterFunnelPage() {
         // Snapshot
         const [funnelRes, trafficRes] = await Promise.all([
           getMasterFunnel(activeRange, sourceKey),
-          showTrafficStage
-            ? getTrafficForRange(activeRange, sourceKey)
-            : Promise.resolve(0),
+          showTrafficStage ? getTrafficForRange(activeRange, sourceKey) : Promise.resolve(0),
         ]);
 
         if (!cancelled) {
@@ -224,17 +213,11 @@ export default function MasterFunnelPage() {
     return () => {
       cancelled = true;
     };
-  }, [
-    activeRange.startDate,
-    activeRange.endDate,
-    sourceKey,
-    showTrafficStage,
-    viewMode,
-  ]);
+  }, [activeRange.startDate, activeRange.endDate, sourceKey, showTrafficStage, viewMode]);
 
   function pickPreset(next: PresetKey) {
     setPreset(next);
-    setCustomRange({ startDate: "", endDate: "" });
+    setCustomRange({ startDate: "", endDate: "" }); // clears custom mode, so RANGE pill goes neutral
   }
 
   const presets: Array<{ key: PresetKey; label: string }> = [
@@ -259,19 +242,14 @@ export default function MasterFunnelPage() {
     { key: "other", label: "Other" },
   ];
 
+  const tier1 = sources.filter((s) => s.key === "allLeads" || s.key === "allWeb");
+  const tier2 = sources.filter((s) => s.key !== "allLeads" && s.key !== "allWeb");
+
   const actions = (
     <>
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          justifyContent: "flex-end",
-        }}
-      >
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
         {presets.map((p) => {
-          const active =
-            !(customRange.startDate && customRange.endDate) && preset === p.key;
+          const active = !isUsingCustomRange && preset === p.key;
 
           return (
             <SecondaryButton
@@ -291,13 +269,11 @@ export default function MasterFunnelPage() {
           startDate={activeRange.startDate}
           endDate={activeRange.endDate}
           onChange={(next) => setCustomRange(next)}
+          isActive={isUsingCustomRange}
         />
       </div>
     </>
   );
-
-  const tier1 = sources.filter((s) => s.key === "allLeads" || s.key === "allWeb");
-  const tier2 = sources.filter((s) => s.key !== "allLeads" && s.key !== "allWeb");
 
   return (
     <>
@@ -325,35 +301,22 @@ export default function MasterFunnelPage() {
             padding: 16,
           }}
         >
-          {/* Report view */}
-          <div
-            style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}
-          >
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}>
             Report view
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <SecondaryButton
-              active={viewMode === "snapshot"}
-              onClick={() => setViewMode("snapshot")}
-            >
+            <SecondaryButton active={viewMode === "snapshot"} onClick={() => setViewMode("snapshot")}>
               Snapshot
             </SecondaryButton>
-            <SecondaryButton
-              active={viewMode === "compare"}
-              onClick={() => setViewMode("compare")}
-            >
+            <SecondaryButton active={viewMode === "compare"} onClick={() => setViewMode("compare")}>
               Compare
             </SecondaryButton>
-            <SecondaryButton
-              active={viewMode === "trend"}
-              onClick={() => setViewMode("trend")}
-            >
+            <SecondaryButton active={viewMode === "trend"} onClick={() => setViewMode("trend")}>
               Trend
             </SecondaryButton>
           </div>
 
-          {/* Divider */}
           <div
             style={{
               height: 1,
@@ -362,15 +325,7 @@ export default function MasterFunnelPage() {
             }}
           />
 
-          {/* Source label */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 10,
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Source</div>
             <InfoTip text={SOURCE_INFO[sourceKey]} ariaLabel="Source filter info" />
           </div>

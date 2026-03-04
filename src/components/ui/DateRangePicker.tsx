@@ -30,8 +30,15 @@ export function DateRangePicker(props: {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   onChange: (next: { startDate: string; endDate: string }) => void;
+
+  /**
+   * When true, the RANGE pill highlights lime.
+   * Use this to show "custom range is active".
+   * If omitted, it falls back to highlighting whenever a committed range exists.
+   */
+  isActive?: boolean;
 }) {
-  const { startDate, endDate, onChange } = props;
+  const { startDate, endDate, onChange, isActive } = props;
 
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -105,18 +112,17 @@ export function DateRangePicker(props: {
     return draft?.from ?? committed?.from ?? new Date();
   }, [draft?.from, committed?.from]);
 
-  // "Custom" = both dates selected (committed)
-  const isCustomActive = Boolean(committed?.from && committed?.to);
+  // If parent provides isActive, use it. Otherwise fall back to old behavior.
+  const highlight = isActive ?? Boolean(committed?.from && committed?.to);
 
   const canApply = Boolean(draft?.from);
 
   return (
     <div ref={anchorRef} style={{ position: "relative" }}>
-      {/* Trigger: match SecondaryButton feel (neutral → lime when active) */}
+      {/* Trigger pill */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        data-active={isCustomActive ? "true" : "false"}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -124,11 +130,11 @@ export function DateRangePicker(props: {
           height: 44,
           padding: "0 18px",
           borderRadius: 999,
-          border: isCustomActive
+          border: highlight
             ? "1px solid var(--lime)"
             : "1px solid rgba(255,255,255,0.18)",
           background: "transparent",
-          color: isCustomActive ? "var(--lime)" : "rgba(255,255,255,0.85)",
+          color: highlight ? "var(--lime)" : "rgba(255,255,255,0.85)",
           fontWeight: 800,
           letterSpacing: 0.2,
           cursor: "pointer",
@@ -139,7 +145,7 @@ export function DateRangePicker(props: {
       >
         <span
           style={{
-            color: isCustomActive ? "var(--lime)" : "rgba(255,255,255,0.55)",
+            color: highlight ? "var(--lime)" : "rgba(255,255,255,0.55)",
             fontSize: 11,
             letterSpacing: 1,
             fontWeight: 900,
@@ -160,7 +166,6 @@ export function DateRangePicker(props: {
             borderRadius: 18,
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(10,10,10,0.96)",
-            // keep blur subtle, no glow
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
             boxShadow: "0 18px 60px rgba(0,0,0,0.45)",
@@ -213,7 +218,6 @@ export function DateRangePicker(props: {
 
             .pp-nav { display: inline-flex; gap: 8px; }
 
-            /* Nav buttons: NO glow, NO lift */
             .pp-rdp .pp-nav button,
             .pp-rdp .pp-navBtn {
               width: 34px !important;
@@ -282,7 +286,6 @@ export function DateRangePicker(props: {
               text-align: center;
             }
 
-            /* Day button: clean, no glow */
             .pp-dayBtn {
               width: 40px !important;
               height: 40px !important;
@@ -321,14 +324,12 @@ export function DateRangePicker(props: {
               box-shadow: none !important;
             }
 
-            /* Range middle: subtle flat tint, no glow */
             .pp-rangeMid .pp-dayBtn {
               background: rgba(164,255,0,0.10) !important;
               border-color: rgba(164,255,0,0.18) !important;
               color: rgba(255,255,255,0.92) !important;
             }
 
-            /* Selected/Start/End: SOLID lime, dark text, no glow */
             .pp-selected .pp-dayBtn,
             .pp-rangeStart .pp-dayBtn,
             .pp-rangeEnd .pp-dayBtn {
@@ -348,7 +349,6 @@ export function DateRangePicker(props: {
             }
           `}</style>
 
-          {/* From / To chips */}
           <div
             style={{
               display: "grid",
@@ -375,7 +375,13 @@ export function DateRangePicker(props: {
               >
                 FROM
               </div>
-              <div style={{ marginTop: 6, fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>
+              <div
+                style={{
+                  marginTop: 6,
+                  fontWeight: 950,
+                  color: "rgba(255,255,255,0.92)",
+                }}
+              >
                 {fromLabel}
               </div>
             </div>
@@ -398,7 +404,13 @@ export function DateRangePicker(props: {
               >
                 TO
               </div>
-              <div style={{ marginTop: 6, fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>
+              <div
+                style={{
+                  marginTop: 6,
+                  fontWeight: 950,
+                  color: "rgba(255,255,255,0.92)",
+                }}
+              >
                 {toLabel}
               </div>
             </div>
@@ -435,7 +447,6 @@ export function DateRangePicker(props: {
             }}
           />
 
-          {/* Actions */}
           <div
             style={{
               marginTop: 12,
