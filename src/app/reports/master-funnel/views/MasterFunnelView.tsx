@@ -234,7 +234,7 @@ export function MasterFunnelView({
       </Card>
 
       <Card style={mf.card}>
-        <div style={{ maxWidth: 320, margin: "0 auto" }}>
+        <div style={{ maxWidth: 250, margin: "0 auto" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Dial label="Lead → Sale %" valuePct={leadToSale} />
             <Dial label="Qualified → Sale %" valuePct={qualifiedToSale} />
